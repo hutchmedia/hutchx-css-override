@@ -1,9 +1,8 @@
-\
 <?php
 /**
  * Plugin Name: HutchX CSS Override
- * Description: Manage custom site-wide behaviours.
- * Version: 1.6.1
+ * Description: Manage custom site-wide CSS, header scripts, external-link behaviour, login logo — with GitHub-powered updates baked in.
+ * Version: 1.6.2
  * Author: HutchX
  * License: GPL-2.0-or-later
  * Text Domain: hutchx-css-override
@@ -11,6 +10,9 @@
 
 if (!defined('ABSPATH')) exit;
 
+/**
+ * On activation, seed defaults.
+ */
 register_activation_hook(__FILE__, function () {
     add_option('hutchx_custom_css', '');
     add_option('hutchx_header_scripts', '');
@@ -18,7 +20,9 @@ register_activation_hook(__FILE__, function () {
     add_option('hutchx_login_logo_url', '');
 });
 
-
+/**
+ * Admin menu — put right near the top (under Dashboard).
+ */
 add_action('admin_menu', function () {
     add_menu_page(
         __('HutchX CSS Override', 'hutchx-css-override'),
@@ -31,15 +35,19 @@ add_action('admin_menu', function () {
     );
 });
 
-
+/**
+ * Register settings we store.
+ */
 add_action('admin_init', function () {
-    register_setting('hutchx_css_group', 'hutchx_custom_css');   
-    register_setting('hutchx_css_group', 'hutchx_header_scripts'); 
-    register_setting('hutchx_css_group', 'hutchx_open_external_links');
-    register_setting('hutchx_css_group', 'hutchx_login_logo_url');     
+    register_setting('hutchx_css_group', 'hutchx_custom_css');          // raw CSS
+    register_setting('hutchx_css_group', 'hutchx_header_scripts');      // raw head HTML/JS
+    register_setting('hutchx_css_group', 'hutchx_open_external_links'); // 0/1
+    register_setting('hutchx_css_group', 'hutchx_login_logo_url');      // URL
 });
 
-
+/**
+ * Admin page renderer.
+ */
 function hutchx_css_settings_page() {
     if (!current_user_can('manage_options')) return;
     $css   = get_option('hutchx_custom_css', '');
@@ -69,7 +77,7 @@ function hutchx_css_settings_page() {
             <h2 class="title">External Links Behaviour</h2>
             <label>
                 <input type="checkbox" name="hutchx_open_external_links" value="1" <?php checked($links, 1); ?>>
-                Open external links in a new window (adds <code>target="_blank"></code> and <code>rel="noopener noreferrer"></code>)
+                Open external links in a new window (adds <code>target="_blank"</code> and <code>rel="noopener noreferrer"</code>)
             </label>
             <p><em>Excludes same-domain links, anchors, <code>mailto:</code>, <code>tel:</code>, and <code>javascript:</code>.</em></p>
 
@@ -128,7 +136,7 @@ add_action('wp_footer', function () {
         for (var i=0;i<as.length;i++){
             var a = as[i];
             var href = a.getAttribute('href') || '';
-            if (href[0] === '#' || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) continue;
+            if (href[0] === '#' || href.indexOf('mailto:') === 0 || href.indexOf('tel:') === 0 || href.indexOf('javascript:') === 0) continue;
             if (isExternal(a)) {
                 if (!a.target) a.target = '_blank';
                 var rel = (a.getAttribute('rel') || '').split(/\s+/).filter(Boolean);
@@ -167,19 +175,15 @@ add_action('login_enqueue_scripts', function () {
 </style>
     <?php
 });
-add_filter('login_headerurl', fn() => home_url('/'));
-add_filter('login_headertext', fn() => get_bloginfo('name'));
+add_filter('login_headerurl', function(){ return home_url('/'); });
+add_filter('login_headertext', function(){ return get_bloginfo('name'); });
 
 /**
  * ──────────────────────────────────────────────────────────────────────────────
  * Hard-coded GitHub Updater (public repo)
  * Repo: hutchmedia/hutchx-css-override
- * - Checks https://api.github.com/repos/hutchmedia/hutchx-css-override/releases/latest
- * - Compares tag_name to current Version header
- * - Supplies update info to WordPress (one-click update)
  * ──────────────────────────────────────────────────────────────────────────────
  */
-
 class HutchX_GitHub_Updater {
     private $file;
     private $plugin_basename;
@@ -193,9 +197,9 @@ class HutchX_GitHub_Updater {
         if ($this->slug === '.') $this->slug = basename($this->plugin_basename, '.php');
         $this->version = $this->get_plugin_version();
 
-        add_filter('pre_set_site_transient_update_plugins', [$this, 'check_for_update']);
-        add_filter('plugins_api', [$this, 'plugins_api'], 10, 3);
-        add_filter('upgrader_post_install', [$this, 'post_install'], 10, 3);
+        add_filter('pre_set_site_transient_update_plugins', array($this, 'check_for_update'));
+        add_filter('plugins_api', array($this, 'plugins_api'), 10, 3);
+        add_filter('upgrader_post_install', array($this, 'post_install'), 10, 3);
     }
 
     private function get_plugin_version() {
@@ -205,20 +209,18 @@ class HutchX_GitHub_Updater {
     }
 
     private function get_repo() {
-        // Hard-coded public repo
         return 'hutchmedia/hutchx-css-override';
     }
 
     private function fetch_latest_release() {
-        $repo = $this->get_repo();
-        $url = 'https://api.github.com/repos/' . $repo . '/releases/latest';
-        $args = [
-            'headers' => [
+        $url = 'https://api.github.com/repos/' . $this->get_repo() . '/releases/latest';
+        $args = array(
+            'headers' => array(
                 'Accept' => 'application/vnd.github+json',
                 'User-Agent' => 'WordPress; ' . home_url('/'),
-            ],
+            ),
             'timeout' => 15,
-        ];
+        );
         $res = wp_remote_get($url, $args);
         if (is_wp_error($res)) return null;
         $code = wp_remote_retrieve_response_code($res);
@@ -239,12 +241,12 @@ class HutchX_GitHub_Updater {
         $latest = $this->fetch_latest_release();
         if (!$latest) return $transient;
 
-        $new_version = $this->normalize_tag($latest['tag_name'] ?? '');
+        $new_version = $this->normalize_tag(isset($latest['tag_name']) ? $latest['tag_name'] : '');
         if (!$new_version) return $transient;
 
         if (version_compare($new_version, $this->version, '<=')) return $transient;
 
-        $zip_url = $latest['zipball_url'] ?? '';
+        $zip_url = isset($latest['zipball_url']) ? $latest['zipball_url'] : '';
         if (!$zip_url) return $transient;
 
         $obj = new stdClass();
@@ -252,10 +254,10 @@ class HutchX_GitHub_Updater {
         $obj->plugin = $this->plugin_basename;
         $obj->new_version = $new_version;
         $obj->url = 'https://github.com/' . $this->get_repo();
-        $obj->package = $zip_url; // WordPress will download and install this zip
+        $obj->package = $zip_url;
         $obj->tested = get_bloginfo('version');
         $obj->requires = '5.0';
-        $obj->icons = [];
+        $obj->icons = array();
 
         $transient->response[$this->plugin_basename] = $obj;
         return $transient;
@@ -271,19 +273,18 @@ class HutchX_GitHub_Updater {
         $info = new stdClass();
         $info->name = 'HutchX CSS Override';
         $info->slug = $this->slug;
-        $info->version = $this->normalize_tag($latest['tag_name'] ?? '');
+        $info->version = $this->normalize_tag(isset($latest['tag_name']) ? $latest['tag_name'] : '');
         $info->author = '<a href="https://hutchx.com/">HutchX</a>';
         $info->homepage = 'https://github.com/' . $this->get_repo();
-        $info->download_link = $latest['zipball_url'] ?? '';
-        $info->sections = [
-            'description' => wp_kses_post($latest['body'] ?? 'Managed CSS, header scripts, external-link behaviour, and login logo.'),
-            'changelog'   => wp_kses_post($latest['body'] ?? ''),
-        ];
+        $info->download_link = isset($latest['zipball_url']) ? $latest['zipball_url'] : '';
+        $info->sections = array(
+            'description' => wp_kses_post(isset($latest['body']) ? $latest['body'] : 'Managed CSS, header scripts, external-link behaviour, and login logo.'),
+            'changelog'   => wp_kses_post(isset($latest['body']) ? $latest['body'] : ''),
+        );
         return $info;
     }
 
     public function post_install($response, $hook_extra, $result) {
-        // Ensure the installed folder matches our existing folder to avoid duplicates with weird zipball names.
         $proper_folder_name = dirname($this->plugin_basename);
         if ($proper_folder_name === '.' ) $proper_folder_name = 'hutchx-css-override';
 
@@ -296,16 +297,13 @@ class HutchX_GitHub_Updater {
                 $result['destination'] = $destination;
             }
         }
-        // Reactivate if it was active
-        $was_active = is_plugin_active($this->plugin_basename);
-        if ($was_active) {
+        if (is_plugin_active($this->plugin_basename)) {
             activate_plugin($this->plugin_basename);
         }
         return $result;
     }
 }
 
-// Only run updater in wp-admin
 if (is_admin()) {
     new HutchX_GitHub_Updater(__FILE__);
 }
