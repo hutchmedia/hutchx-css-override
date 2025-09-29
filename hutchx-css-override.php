@@ -2,8 +2,8 @@
 <?php
 /**
  * Plugin Name: HutchX CSS Override
- * Description: Manage custom site-wide CSS, header scripts, external-link behaviour, login logo, and receive GitHub-powered updates.
- * Version: 1.6.0
+ * Description: Manage custom site-wide behaviours.
+ * Version: 1.6.1
  * Author: HutchX
  * License: GPL-2.0-or-later
  * Text Domain: hutchx-css-override
@@ -11,21 +11,14 @@
 
 if (!defined('ABSPATH')) exit;
 
-/**
- * On activation, seed defaults.
- */
 register_activation_hook(__FILE__, function () {
     add_option('hutchx_custom_css', '');
     add_option('hutchx_header_scripts', '');
     add_option('hutchx_open_external_links', 1);
     add_option('hutchx_login_logo_url', '');
-    add_option('hutchx_github_repo', ''); // format: owner/repo (e.g., HutchX/hutchx-css-override)
-    add_option('hutchx_github_branch', 'main');
 });
 
-/**
- * Admin menu — put right near the top (under Dashboard).
- */
+
 add_action('admin_menu', function () {
     add_menu_page(
         __('HutchX CSS Override', 'hutchx-css-override'),
@@ -38,33 +31,25 @@ add_action('admin_menu', function () {
     );
 });
 
-/**
- * Register settings we store.
- */
+
 add_action('admin_init', function () {
-    register_setting('hutchx_css_group', 'hutchx_custom_css');          // raw CSS
-    register_setting('hutchx_css_group', 'hutchx_header_scripts');      // raw head HTML/JS
-    register_setting('hutchx_css_group', 'hutchx_open_external_links'); // 0/1
-    register_setting('hutchx_css_group', 'hutchx_login_logo_url');      // URL
-    register_setting('hutchx_css_group', 'hutchx_github_repo');         // owner/repo
-    register_setting('hutchx_css_group', 'hutchx_github_branch');       // branch
+    register_setting('hutchx_css_group', 'hutchx_custom_css');   
+    register_setting('hutchx_css_group', 'hutchx_header_scripts'); 
+    register_setting('hutchx_css_group', 'hutchx_open_external_links');
+    register_setting('hutchx_css_group', 'hutchx_login_logo_url');     
 });
 
-/**
- * Admin page renderer.
- */
+
 function hutchx_css_settings_page() {
     if (!current_user_can('manage_options')) return;
     $css   = get_option('hutchx_custom_css', '');
     $head  = get_option('hutchx_header_scripts', '');
     $links = (int) get_option('hutchx_open_external_links', 1);
     $logo  = get_option('hutchx_login_logo_url', '');
-    $repo  = get_option('hutchx_github_repo', '');
-    $branch= get_option('hutchx_github_branch', 'main');
     ?>
     <div class="wrap">
         <h1>HutchX — Site Overrides</h1>
-        <p style="max-width:800px;">CSS loads last in <code>&lt;head&gt;</code>. Header scripts print in <code>&lt;head&gt;</code>. External-link behaviour is JS-based. Login logo customises wp-login. Set GitHub below for free updates direct from your repo.</p>
+        <p style="max-width:800px;">CSS loads last in <code>&lt;head&gt;</code>. Header scripts print in <code>&lt;head&gt;</code>. External-link behaviour is JS-based. Login logo customises wp-login.</p>
 
         <form method="post" action="options.php">
             <?php settings_fields('hutchx_css_group'); ?>
@@ -84,7 +69,7 @@ function hutchx_css_settings_page() {
             <h2 class="title">External Links Behaviour</h2>
             <label>
                 <input type="checkbox" name="hutchx_open_external_links" value="1" <?php checked($links, 1); ?>>
-                Open external links in a new window (adds <code>target="_blank"</code> and <code>rel="noopener noreferrer"</code>)
+                Open external links in a new window (adds <code>target="_blank"></code> and <code>rel="noopener noreferrer"></code>)
             </label>
             <p><em>Excludes same-domain links, anchors, <code>mailto:</code>, <code>tel:</code>, and <code>javascript:</code>.</em></p>
 
@@ -94,14 +79,6 @@ function hutchx_css_settings_page() {
             <p>URL to a logo image for the login page (SVG/PNG recommended).</p>
             <input type="url" name="hutchx_login_logo_url" value="<?php echo esc_attr($logo); ?>" style="width:100%;max-width:600px;">
             <p><em>Tip: ~320×80-ish works well. SVG scales nicely.</em></p>
-
-            <hr>
-
-            <h2 class="title">GitHub Updates</h2>
-            <p>Enter your public GitHub repo in the format <code>owner/repo</code> (e.g., <code>HutchX/hutchx-css-override</code>). We’ll check GitHub Releases for updates.</p>
-            <input type="text" name="hutchx_github_repo" value="<?php echo esc_attr($repo); ?>" placeholder="owner/repo" style="width:100%;max-width:400px;">
-            <p>Branch (for reference/display only):</p>
-            <input type="text" name="hutchx_github_branch" value="<?php echo esc_attr($branch); ?>" style="width:100%;max-width:200px;">
 
             <?php submit_button('Save Settings'); ?>
         </form>
@@ -195,13 +172,11 @@ add_filter('login_headertext', fn() => get_bloginfo('name'));
 
 /**
  * ──────────────────────────────────────────────────────────────────────────────
- * Lightweight GitHub Updater (public repos only)
- * - Checks https://api.github.com/repos/{owner}/{repo}/releases/latest
+ * Hard-coded GitHub Updater (public repo)
+ * Repo: hutchmedia/hutchx-css-override
+ * - Checks https://api.github.com/repos/hutchmedia/hutchx-css-override/releases/latest
  * - Compares tag_name to current Version header
  * - Supplies update info to WordPress (one-click update)
- * Notes:
- * - Works best if you publish GitHub Releases and keep tag in semver (e.g. 1.6.1 or v1.6.1).
- * - The downloaded ZIP will be GitHub's generated zipball.
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
@@ -230,11 +205,12 @@ class HutchX_GitHub_Updater {
     }
 
     private function get_repo() {
-        $repo = trim(get_option('hutchx_github_repo', ''));
-        return $repo;
+        // Hard-coded public repo
+        return 'hutchmedia/hutchx-css-override';
     }
 
-    private function fetch_latest_release($repo) {
+    private function fetch_latest_release() {
+        $repo = $this->get_repo();
         $url = 'https://api.github.com/repos/' . $repo . '/releases/latest';
         $args = [
             'headers' => [
@@ -259,16 +235,13 @@ class HutchX_GitHub_Updater {
 
     public function check_for_update($transient) {
         if (empty($transient->checked)) return $transient;
-        $repo = $this->get_repo();
-        if (!$repo) return $transient;
 
-        $latest = $this->fetch_latest_release($repo);
+        $latest = $this->fetch_latest_release();
         if (!$latest) return $transient;
 
         $new_version = $this->normalize_tag($latest['tag_name'] ?? '');
         if (!$new_version) return $transient;
 
-        // Compare versions
         if (version_compare($new_version, $this->version, '<=')) return $transient;
 
         $zip_url = $latest['zipball_url'] ?? '';
@@ -278,7 +251,7 @@ class HutchX_GitHub_Updater {
         $obj->slug = $this->slug;
         $obj->plugin = $this->plugin_basename;
         $obj->new_version = $new_version;
-        $obj->url = 'https://github.com/' . $repo;
+        $obj->url = 'https://github.com/' . $this->get_repo();
         $obj->package = $zip_url; // WordPress will download and install this zip
         $obj->tested = get_bloginfo('version');
         $obj->requires = '5.0';
@@ -292,10 +265,7 @@ class HutchX_GitHub_Updater {
         if ($action !== 'plugin_information') return $result;
         if (!isset($args->slug) || $args->slug !== $this->slug) return $result;
 
-        $repo = $this->get_repo();
-        if (!$repo) return $result;
-
-        $latest = $this->fetch_latest_release($repo);
+        $latest = $this->fetch_latest_release();
         if (!$latest) return $result;
 
         $info = new stdClass();
@@ -303,7 +273,7 @@ class HutchX_GitHub_Updater {
         $info->slug = $this->slug;
         $info->version = $this->normalize_tag($latest['tag_name'] ?? '');
         $info->author = '<a href="https://hutchx.com/">HutchX</a>';
-        $info->homepage = 'https://github.com/' . $repo;
+        $info->homepage = 'https://github.com/' . $this->get_repo();
         $info->download_link = $latest['zipball_url'] ?? '';
         $info->sections = [
             'description' => wp_kses_post($latest['body'] ?? 'Managed CSS, header scripts, external-link behaviour, and login logo.'),
