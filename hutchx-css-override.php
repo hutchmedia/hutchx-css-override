@@ -2,7 +2,7 @@
 /**
  * Plugin Name: HutchX CSS Override
  * Description: Manage custom site-wide CSS, header scripts, external-link behaviour, login logo — with GitHub-powered updates baked in.
- * Version: 1.6.2
+ * Version: 1.6.3
  * Author: HutchX
  * License: GPL-2.0-or-later
  * Text Domain: hutchx-css-override
